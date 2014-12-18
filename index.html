@@ -1,0 +1,142 @@
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="favicon.ico" type="image/x-icon" />
+    
+    <title>Angular Bootstrap Slider test</title>
+    
+    <link rel="stylesheet" href="bower_components/bootstrap/dist/css/bootstrap.css">
+    <link rel="stylesheet" href="bower_components/seiyria-bootstrap-slider/dist/css/bootstrap-slider.css">
+    <link rel="stylesheet" href="bower_components/fontawesome/css/font-awesome.min.css">
+    <link rel="stylesheet" href="bower_components/weather-icons/css/weather-icons.css">
+    
+    <link rel="stylesheet" href="style.css">
+  </head>
+  <body ng-app="myapp">
+    <div class="container" ng-controller="MyController">
+      <nav class="navbar" role="banner">
+        <a class="navbar-brand" href="#">VeraLite Control Panel</a>
+      </nav>
+      <accordion close-others="false">
+        <accordion-group class="animate-repeat" ng-repeat="device in myData.fromServer.devices | filter: filterDevices" is-open="device.isOpen">
+          <div ng-include="getDeviceTypeSlug(device.category_num)" ng-init="DeviceStateObj = createDeviceStateObj(device.states); device.isOpen=true;"></div> 
+        </accordion-group>
+      </accordion>
+    </div>
+    
+    <script src="bower_components/jquery/dist/jquery.js"></script>
+    <script src="bower_components/angular/angular.min.js"></script>
+    <script src="bower_components/bootstrap/dist/js/bootstrap.min.js"></script>
+    <script src="bower_components/angular-bootstrap/ui-bootstrap-tpls.min.js"></script>
+    <script src="bower_components/seiyria-bootstrap-slider/dist/bootstrap-slider.min.js"></script>
+    <script src="bower_components/angular-bootstrap-slider/slider.js"></script>
+    <script>
+      angular.module("myapp", ['ui.bootstrap','ui.bootstrap-slider'])
+        .controller("MyController", function($scope, $http) {
+          $scope.device_type = {
+            '5': {
+              "name":"Thermostat",
+              "slug":"thermostat"
+            },
+            '7': {
+              "name":"Door Lock",
+              "slug":"door_lock"
+            }
+          };
+          $scope.myData = {
+            sliderValue: 1
+          };
+          $scope.myData.init = function() {
+            var url = encodeURIComponent('http://192.168.1.72:3480/data_request?id=user_data&output_format=json');
+            var responsePromise = $http.get("/get.php?url="+url);
+            
+            responsePromise.success(function(data, status, headers, config) {
+              $scope.myData.fromServer = data;
+            });
+            responsePromise.error(function(data, status, headers, config) {
+              alert("AJAX failed!");
+            });
+          }();
+          
+          $scope.filterDevices = function(device){
+            return device.onDashboard;
+          }
+          $scope.getDeviceTypeSlug = function(category_num){
+            return $scope.device_type[category_num].slug;
+          }
+          $scope.getDeviceTypeName = function(category_num) {
+            return $scope.device_type[category_num].name;
+          };
+          $scope.createDeviceStateObj = function(states){
+            var values = {};
+            angular.forEach(states, function(state, key) {
+              values[state.variable] = state.value;
+            });
+            return values;
+          }
+          $scope.decreaseTemp = function(){
+            $scope.myData.sliderValue--;
+          }
+          $scope.increaseTemp = function(){
+            $scope.myData.sliderValue++;
+          }
+          
+          $scope.$watch('myData.sliderValue',function(){
+            clearTimeout($scope.settingCurrentSetpoint);
+            $scope.settingCurrentSetpoint=setTimeout($scope.setCurrentSetpoint, 1000);
+          });
+          $scope.setCurrentSetpoint = function(){
+            var url = encodeURIComponent('http://192.168.1.72:3480/data_request?id=lu_action&output_format=json&DeviceNum=4&serviceId=urn:upnp-org:serviceId:TemperatureSetpoint1&action=SetCurrentSetpoint&NewCurrentSetpoint='+$scope.myData.sliderValue);
+            var responsePromise = $http.get("/get.php?url="+url);
+            
+            responsePromise.success(function(data, status, headers, config) {
+              console.log(data);
+            });
+            responsePromise.error(function(data, status, headers, config) {
+              alert("AJAX failed!");
+            });
+          };
+        });
+    </script>
+    <script type="text/ng-template" id="thermostat">
+      <accordion-heading>
+        Device [{{device.id}}] - {{device.name}}
+        <span class="pull-right"><i class="wi wi-day-sunny" style="color:orange"></i></span>
+      </accordion-heading>
+      <dl>
+        <dt>Current Temperature</dt>
+        <dd>{{DeviceStateObj.CurrentTemperature}}</dd>
+      </dl>
+      <div class="well well-lg pull-left" style="padding: 24px 30px 24px 30px">
+        <div class="row" style="margin-bottom:10px;">
+          <slider ng-model="myData.sliderValue" tooltip="hide" step="1" min="0" max="100" ng-init="myData.sliderValue = DeviceStateObj.CurrentSetpoint * 1"></slider>
+        </div>
+        <div class="row">
+          <div class="input-group" style="width:210px;">
+            <span class="input-group-btn">
+              <button class="btn btn-default" type="button" ng-click="decreaseTemp()">-</button>
+            </span>
+            <input ng-model="myData.sliderValue" type="text" class="text-center form-control">
+            <span class="input-group-btn">
+              <button class="btn btn-default" type="button" ng-click="increaseTemp()">+</button>
+            </span>
+          </div>
+        </div>
+      </div>
+    </script>
+    <script type="text/ng-template" id="door_lock">
+      <accordion-heading>
+        Device [{{device.id}}] - {{device.name}}
+        <span class="pull-right"><i class="fa fa-lock"></i></span>
+      </accordion-heading>
+      <dl>
+        <dt>Battery Level</dt>
+        <dd>{{DeviceStateObj.BatteryLevel}}</dd>
+        <dt>Status</dt>
+        <dd>{{DeviceStateObj.Status == '1' ? 'Locked' : 'Unlocked'}}</dd>
+      </dl>
+    </script>
+  </body>
+</html>

@@ -1,0 +1,11 @@
+{
+  "name":"veralite",
+  "dependencies": {
+    "seiyria-bootstrap-slider": "~3.1.0",
+    "angular": "~1.2.16",
+    "angular-bootstrap":"*",
+    "angular-bootstrap-slider":"*",
+    "fontawesome": "*",
+    "weather-icons": "*"
+  }
+}

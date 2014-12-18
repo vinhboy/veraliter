@@ -1,0 +1,9 @@
+.slider-selection {
+  background:none;
+  -webkit-box-shadow: none;
+  box-shadow: none;
+}
+.slider-track {
+  background-image: none;
+  background-color: #FFF;
+}
