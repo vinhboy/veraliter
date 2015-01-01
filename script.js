@@ -16,9 +16,9 @@ $myapp.controller("MyController", function($scope, $http, $interval, $timeout) {
   var timer;
   $scope.startRefresh = function() {
     if ( angular.isDefined(timer) ) return;
-    // timer = $interval(function(){
-    //   $scope.myData.init();
-    // },10000);
+    timer = $interval(function(){
+      $scope.myData.init();
+    },10000);
   };
   $scope.stopRefresh = function() {
     if (angular.isDefined(timer)) {
@@ -29,7 +29,7 @@ $myapp.controller("MyController", function($scope, $http, $interval, $timeout) {
   
   $scope.myData.init = function() {
     var url = encodeURIComponent('http://192.168.1.72:3480/data_request?id=user_data&output_format=json');
-    var responsePromise = $http.get("/get.php?url="+url);
+    var responsePromise = $http.get("/get.py?url="+url);
     
     responsePromise.success(function(data, status, headers, config) {
       $scope.devices = [];
@@ -83,7 +83,7 @@ $myapp.controller("thermostatCtrl", function($scope, $http, $interval, $timeout)
   $scope.setCurrentSetpoint = function(){
     $scope.stopRefresh();
     var url = encodeURIComponent('http://192.168.1.72:3480/data_request?id=lu_action&output_format=json&DeviceNum=4&serviceId=urn:upnp-org:serviceId:TemperatureSetpoint1&action=SetCurrentSetpoint&NewCurrentSetpoint='+$scope.sliderValue);
-    var responsePromise = $http.get("/get.php?url="+url);
+    var responsePromise = $http.get("/get.py?url="+url);
     
     responsePromise.success(function(data, status, headers, config) {
       console.log(data);
@@ -100,8 +100,8 @@ $myapp.controller("thermostatCtrl", function($scope, $http, $interval, $timeout)
   });
   $scope.setModeTarget = function(deviceID,ModeTarget){
     $scope.stopRefresh();
-    var url = encodeURIComponent('http://192.168.1.72/port_3480/data_request?id=lu_action&output_format=json&action=SetModeTarget&serviceId=urn:upnp-org:serviceId:HVAC_UserOperatingMode1&rand='+Math.random()+'&DeviceNum='+deviceID+'&NewModeTarget='+ModeTarget);
-    var responsePromise = $http.get("/get.php?url="+url);
+    var url = encodeURIComponent('http://192.168.1.72:3480/data_request?id=lu_action&output_format=json&action=SetModeTarget&serviceId=urn:upnp-org:serviceId:HVAC_UserOperatingMode1&rand='+Math.random()+'&DeviceNum='+deviceID+'&NewModeTarget='+ModeTarget);
+    var responsePromise = $http.get("/get.py?url="+url);
     responsePromise.success(function(data, status, headers, config) {
       console.log(data);
     });
