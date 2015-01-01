@@ -1,4 +1,5 @@
-angular.module("myapp", ['ui.bootstrap','ui.bootstrap-slider']).controller("MyController", function($scope, $http, $interval, $timeout) {
+$myapp = angular.module("myapp", ['ui.bootstrap'])
+$myapp.controller("MyController", function($scope, $http, $interval, $timeout) {
   $scope.device_type = {
     '5': {
       "name":"Thermostat",
@@ -9,16 +10,15 @@ angular.module("myapp", ['ui.bootstrap','ui.bootstrap-slider']).controller("MyCo
       "slug":"door_lock"
     }
   };
-  $scope.myData = {
-    sliderValue: 1
-  };
+  
+  $scope.myData = {};
   
   var timer;
   $scope.startRefresh = function() {
     if ( angular.isDefined(timer) ) return;
-    timer = $interval(function(){
-      $scope.myData.init();
-    },10000);
+    // timer = $interval(function(){
+    //   $scope.myData.init();
+    // },10000);
   };
   $scope.stopRefresh = function() {
     if (angular.isDefined(timer)) {
@@ -32,8 +32,13 @@ angular.module("myapp", ['ui.bootstrap','ui.bootstrap-slider']).controller("MyCo
     var responsePromise = $http.get("/get.php?url="+url);
     
     responsePromise.success(function(data, status, headers, config) {
-      $scope.myData.fromServer = data;
-      console.log(data);
+      $scope.devices = [];
+      angular.forEach(data.devices,function(device,key){
+        if (device.onDashboard) {
+          device.DeviceStateObj = $scope.createDeviceStateObj(device.states);
+          $scope.devices.push(device);
+        }
+      });
     });
     responsePromise.error(function(data, status, headers, config) {
       alert("AJAX failed!");
@@ -58,20 +63,26 @@ angular.module("myapp", ['ui.bootstrap','ui.bootstrap-slider']).controller("MyCo
     });
     return values;
   }
+});
+$myapp.controller("thermostatCtrl", function($scope, $http, $interval, $timeout) {
+  $scope.sliderValue = $scope.device.DeviceStateObj.CurrentSetpoint * 1;
+  $scope.modeStatus = $scope.device.DeviceStateObj.ModeStatus;
+  
   $scope.decreaseTemp = function(){
-    $scope.myData.sliderValue--;
+    $scope.sliderValue--;
   }
   $scope.increaseTemp = function(){
-    $scope.myData.sliderValue++;
+    $scope.sliderValue++;
   }
   
-  $scope.$watch('myData.sliderValue',function(){
+  $scope.$watch('sliderValue',function(newValue,oldValue){
+    if(isNaN(oldValue) || isNaN($scope.sliderValue) || newValue == oldValue) return;
     $timeout.cancel($scope.settingCurrentSetpoint);
-    $scope.settingCurrentSetpoint = $timeout($scope.setCurrentSetpoint, 1000);
+    $scope.settingCurrentSetpoint = $timeout($scope.setCurrentSetpoint, 2000);
   });
   $scope.setCurrentSetpoint = function(){
     $scope.stopRefresh();
-    var url = encodeURIComponent('http://192.168.1.72:3480/data_request?id=lu_action&output_format=json&DeviceNum=4&serviceId=urn:upnp-org:serviceId:TemperatureSetpoint1&action=SetCurrentSetpoint&NewCurrentSetpoint='+$scope.myData.sliderValue);
+    var url = encodeURIComponent('http://192.168.1.72:3480/data_request?id=lu_action&output_format=json&DeviceNum=4&serviceId=urn:upnp-org:serviceId:TemperatureSetpoint1&action=SetCurrentSetpoint&NewCurrentSetpoint='+$scope.sliderValue);
     var responsePromise = $http.get("/get.php?url="+url);
     
     responsePromise.success(function(data, status, headers, config) {
@@ -82,6 +93,11 @@ angular.module("myapp", ['ui.bootstrap','ui.bootstrap-slider']).controller("MyCo
     });
     $scope.startRefresh();
   };
+  
+  $scope.$watch('modeStatus',function(newValue,oldValue){
+    if (newValue == oldValue || (typeof oldValue === 'undefined')) return;
+    $scope.setModeTarget(4,$scope.modeStatus);
+  });
   $scope.setModeTarget = function(deviceID,ModeTarget){
     $scope.stopRefresh();
     var url = encodeURIComponent('http://192.168.1.72/port_3480/data_request?id=lu_action&output_format=json&action=SetModeTarget&serviceId=urn:upnp-org:serviceId:HVAC_UserOperatingMode1&rand='+Math.random()+'&DeviceNum='+deviceID+'&NewModeTarget='+ModeTarget);
