@@ -1,5 +1,5 @@
-$myapp = angular.module("myapp", ['ui.bootstrap'])
-$myapp.controller("MyController", function($scope, $http, $interval, $timeout) {
+$myapp = angular.module("myapp", ['ui.bootstrap','ngCookies'])
+$myapp.controller("MyController", function($scope, $http, $interval, $cookieStore) {
   $scope.device_type = {
     '5': {
       "name":"Thermostat",
@@ -10,14 +10,42 @@ $myapp.controller("MyController", function($scope, $http, $interval, $timeout) {
       "slug":"door_lock"
     }
   };
+  $scope.base_url = "/cgi-bin/get.py";
   
-  $scope.myData = {};
+  $scope.refresh = function() {
+    if (!$scope.selectedMiCasaVerde) {
+      var cookies = $cookieStore.get('MiCasaVerdes');
+      if (cookies) {
+        $scope.setMiCasaVerde(cookies);
+      } else {
+        $scope.getMiCasaVerdes();
+      }
+    } else {
+      var responsePromise = $http.get($scope.url);
+      
+      responsePromise.success(function(data, status, headers, config) {
+        $scope.devices = [];
+        angular.forEach(data.devices,function(device,key){
+          if (device.onDashboard) {
+            device.DeviceStateObj = $scope.createDeviceStateObj(device.states);
+            $scope.devices.push(device);
+          }
+        });
+        console.log('refreshed');
+        $scope.startRefresh();
+      });
+      responsePromise.error(function(data, status, headers, config) {
+        $scope.stopRefresh();
+        alert("Something went wrong!");
+      });
+    }
+  };
   
   var timer;
   $scope.startRefresh = function() {
     if ( angular.isDefined(timer) ) return;
     timer = $interval(function(){
-      $scope.myData.init();
+      $scope.refresh();
     },10000);
   };
   $scope.stopRefresh = function() {
@@ -27,25 +55,27 @@ $myapp.controller("MyController", function($scope, $http, $interval, $timeout) {
     }
   };
   
-  $scope.myData.init = function() {
-    var url = encodeURIComponent('http://192.168.1.72:3480/data_request?id=user_data&output_format=json');
-    var responsePromise = $http.get("/cgi-bin/get.py?url="+url);
+  $scope.getMiCasaVerdes = function() {
+    console.log('getMiCasaVerdes');
+    var responsePromise = $http.get($scope.base_url);
     
     responsePromise.success(function(data, status, headers, config) {
-      $scope.devices = [];
-      angular.forEach(data.devices,function(device,key){
-        if (device.onDashboard) {
-          device.DeviceStateObj = $scope.createDeviceStateObj(device.states);
-          $scope.devices.push(device);
-        }
-      });
+      $scope.setMiCasaVerde(data);
+      $cookieStore.put('MiCasaVerdes',data);
     });
     responsePromise.error(function(data, status, headers, config) {
-      alert("AJAX failed!");
+      alert("Something went wrong!");
     });
   };
-  $scope.myData.init();
-  $scope.startRefresh();
+  $scope.setMiCasaVerde = function(data){
+    console.log('setMiCasaVerde');
+    $scope.MiCasaVerdes = data;
+    $scope.selectedMiCasaVerde = data[0];
+    $scope.url = $scope.base_url+"?ip="+$scope.selectedMiCasaVerde['ip'];
+    $scope.refresh();
+  }
+
+  $scope.refresh();
   
   $scope.filterDevices = function(device){
     return device.onDashboard;
@@ -64,9 +94,10 @@ $myapp.controller("MyController", function($scope, $http, $interval, $timeout) {
     return values;
   }
 });
-$myapp.controller("thermostatCtrl", function($scope, $http, $interval, $timeout) {
+$myapp.controller("thermostatCtrl", function($scope, $http, $timeout) {
   $scope.sliderValue = $scope.device.DeviceStateObj.CurrentSetpoint * 1;
   $scope.modeStatus = $scope.device.DeviceStateObj.ModeStatus;
+  $scope.DeviceNum = $scope.device.id;
   
   $scope.decreaseTemp = function(){
     $scope.sliderValue--;
@@ -78,35 +109,35 @@ $myapp.controller("thermostatCtrl", function($scope, $http, $interval, $timeout)
   $scope.$watch('sliderValue',function(newValue,oldValue){
     if(isNaN(oldValue) || isNaN($scope.sliderValue) || newValue == oldValue) return;
     $timeout.cancel($scope.settingCurrentSetpoint);
-    $scope.settingCurrentSetpoint = $timeout($scope.setCurrentSetpoint, 2000);
+    $scope.settingCurrentSetpoint = $timeout(function(){$scope.setCurrentSetpoint($scope.sliderValue)}, 2000);
   });
-  $scope.setCurrentSetpoint = function(){
+  $scope.setCurrentSetpoint = function(NewCurrentSetpoint){
     $scope.stopRefresh();
-    var url = encodeURIComponent('http://192.168.1.72:3480/data_request?id=lu_action&output_format=json&DeviceNum=4&serviceId=urn:upnp-org:serviceId:TemperatureSetpoint1&action=SetCurrentSetpoint&NewCurrentSetpoint='+$scope.sliderValue);
-    var responsePromise = $http.get("/cgi-bin/get.py?url="+url);
+    var url = $scope.url + '&DeviceNum=' + $scope.DeviceNum + '&NewCurrentSetpoint=' + NewCurrentSetpoint
+    var responsePromise = $http.get(url);
     
     responsePromise.success(function(data, status, headers, config) {
-      console.log(data);
+      console.log('setCurrentSetpoint success');
     });
     responsePromise.error(function(data, status, headers, config) {
-      alert("AJAX failed!");
+      alert("Something went wrong!");
     });
     $scope.startRefresh();
   };
   
   $scope.$watch('modeStatus',function(newValue,oldValue){
     if (newValue == oldValue || (typeof oldValue === 'undefined')) return;
-    $scope.setModeTarget(4,$scope.modeStatus);
+    $scope.setModeTarget($scope.modeStatus);
   });
-  $scope.setModeTarget = function(deviceID,ModeTarget){
+  $scope.setModeTarget = function(NewModeTarget){
     $scope.stopRefresh();
-    var url = encodeURIComponent('http://192.168.1.72:3480/data_request?id=lu_action&output_format=json&action=SetModeTarget&serviceId=urn:upnp-org:serviceId:HVAC_UserOperatingMode1&rand='+Math.random()+'&DeviceNum='+deviceID+'&NewModeTarget='+ModeTarget);
-    var responsePromise = $http.get("/cgi-bin/get.py?url="+url);
+    var url = $scope.url + '&DeviceNum=' + $scope.DeviceNum + '&NewModeTarget=' + NewModeTarget;
+    var responsePromise = $http.get(url);
     responsePromise.success(function(data, status, headers, config) {
-      console.log(data);
+      console.log('setModeTarget success');
     });
     responsePromise.error(function(data, status, headers, config) {
-      alert("AJAX failed!");
+      alert("Something went wrong!");
     });
     $scope.startRefresh();
   }

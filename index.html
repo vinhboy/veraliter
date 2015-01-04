@@ -17,18 +17,22 @@
     <div class="container" ng-controller="MyController">
       <div class="page-header" style="margin:10px 0 20px 0">
         <h1 style="margin-top:10px;margin-bottom:0">VeraLiter</h1>
+        <div ng-if="selectedMiCasaVerde" style="margin-top:5px">
+          <select class="form-control" ng-options="MiCasaVerde.ip for MiCasaVerde in MiCasaVerdes" ng-model="selectedMiCasaVerde"></select>
+        </div>
+        <div class="clearfix"></div>
+      </div>
+      <div ng-if="!selectedMiCasaVerde">
+        <p class="lead"><i class="fa fa-refresh fa-spin"></i> Hold on... I am trying to find your devices.</p>
       </div>
       <div ng-repeat="device in devices">
         <div ng-include="getDeviceTypeSlug(device.category_num)"></div> 
       </div>
       <div class="clearfix"></div>
-      <hr/>
-      <footer>
-        <small>Model: {{myData.data.model}} Build Version: {{myData.data.BuildVersion}} LoadTime: {{myData.data.LoadTime}}</small>
-      </footer>
     </div>
     <script src="bower_components/jquery/dist/jquery.js"></script>
     <script src="bower_components/angular/angular.min.js"></script>
+    <script src="bower_components/angular-cookies/angular-cookies.js"></script>
     <script src="bower_components/bootstrap/dist/js/bootstrap.min.js"></script>
     <script src="bower_components/angular-bootstrap/ui-bootstrap-tpls.min.js"></script>
     
