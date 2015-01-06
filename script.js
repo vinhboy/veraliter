@@ -10,8 +10,6 @@ $myapp.controller("MyController", function($scope, $http, $interval, $cookieStor
       "slug":"door_lock"
     }
   };
-  $scope.base_url = "/cgi-bin/get.py";
-  
   $scope.refresh = function() {
     if (!$scope.selectedMiCasaVerde) {
       var cookies = $cookieStore.get('MiCasaVerdes');
@@ -21,13 +19,17 @@ $myapp.controller("MyController", function($scope, $http, $interval, $cookieStor
         $scope.getMiCasaVerdes();
       }
     } else {
-      var responsePromise = $http.get($scope.url);
+      var url = $scope.generateURL('data_request?id=user_data&output_format=json')
+      var responsePromise = $http.get(url);
       
       responsePromise.success(function(data, status, headers, config) {
         $scope.devices = [];
         angular.forEach(data.devices,function(device,key){
           if (device.onDashboard) {
-            device.DeviceStateObj = $scope.createDeviceStateObj(device.states);
+            device.DeviceStateObj = {};
+            angular.forEach(device.states, function(state, key) {
+              device.DeviceStateObj[state.variable] = state.value;
+            });
             $scope.devices.push(device);
           }
         });
@@ -36,49 +38,42 @@ $myapp.controller("MyController", function($scope, $http, $interval, $cookieStor
       });
       responsePromise.error(function(data, status, headers, config) {
         $scope.stopRefresh();
-        alert("Something went wrong!");
+        alert("refresh failed!");
       });
     }
   };
   
-  var timer;
   $scope.startRefresh = function() {
-    if ( angular.isDefined(timer) ) return;
-    timer = $interval(function(){
+    if ( angular.isDefined($scope.refreshTimer) ) return;
+    $scope.refreshTimer = $interval(function(){
       $scope.refresh();
     },10000);
   };
   $scope.stopRefresh = function() {
-    if (angular.isDefined(timer)) {
-      $interval.cancel(timer);
-      timer = undefined;
+    if (angular.isDefined($scope.refreshTimer)) {
+      $interval.cancel($scope.refreshTimer);
+      $scope.refreshTimer = undefined;
     }
   };
   
   $scope.getMiCasaVerdes = function() {
     console.log('getMiCasaVerdes');
-    var responsePromise = $http.get($scope.base_url);
+    var responsePromise = $http.get('/cgi-bin/find_devices.py');
     
     responsePromise.success(function(data, status, headers, config) {
       $scope.setMiCasaVerde(data);
       $cookieStore.put('MiCasaVerdes',data);
     });
     responsePromise.error(function(data, status, headers, config) {
-      alert("Something went wrong!");
+      alert("getMiCasaVerdes failed!");
     });
   };
   $scope.setMiCasaVerde = function(data){
     console.log('setMiCasaVerde');
     $scope.MiCasaVerdes = data;
     $scope.selectedMiCasaVerde = data[0];
-    $scope.url = $scope.base_url+"?ip="+$scope.selectedMiCasaVerde['ip'];
+    $scope.base_url = 'http://'+$scope.selectedMiCasaVerde['ip']+':3480/'
     $scope.refresh();
-  }
-
-  $scope.refresh();
-  
-  $scope.filterDevices = function(device){
-    return device.onDashboard;
   }
   $scope.getDeviceTypeSlug = function(category_num){
     return $scope.device_type[category_num].slug;
@@ -86,13 +81,13 @@ $myapp.controller("MyController", function($scope, $http, $interval, $cookieStor
   $scope.getDeviceTypeName = function(category_num) {
     return $scope.device_type[category_num].name;
   };
-  $scope.createDeviceStateObj = function(states){
-    var values = {};
-    angular.forEach(states, function(state, key) {
-      values[state.variable] = state.value;
-    });
-    return values;
+  $scope.generateURL = function(queryString){
+    var proxy = '/cgi-bin/get.py?url='
+    var url = encodeURIComponent($scope.base_url+queryString);
+    return proxy + url;
   }
+  
+  $scope.refresh();
 });
 $myapp.controller("thermostatCtrl", function($scope, $http, $timeout) {
   $scope.sliderValue = $scope.device.DeviceStateObj.CurrentSetpoint * 1;
@@ -113,14 +108,14 @@ $myapp.controller("thermostatCtrl", function($scope, $http, $timeout) {
   });
   $scope.setCurrentSetpoint = function(NewCurrentSetpoint){
     $scope.stopRefresh();
-    var url = $scope.url + '&DeviceNum=' + $scope.DeviceNum + '&NewCurrentSetpoint=' + NewCurrentSetpoint
+    var url = $scope.generateURL('data_request?id=lu_action&output_format=json&serviceId=urn:upnp-org:serviceId:TemperatureSetpoint1&action=SetCurrentSetpoint&DeviceNum='+$scope.DeviceNum+'&NewCurrentSetpoint='+NewCurrentSetpoint);
     var responsePromise = $http.get(url);
     
     responsePromise.success(function(data, status, headers, config) {
       console.log('setCurrentSetpoint success');
     });
     responsePromise.error(function(data, status, headers, config) {
-      alert("Something went wrong!");
+      alert("setCurrentSetpoint failed!");
     });
     $scope.startRefresh();
   };
@@ -131,13 +126,14 @@ $myapp.controller("thermostatCtrl", function($scope, $http, $timeout) {
   });
   $scope.setModeTarget = function(NewModeTarget){
     $scope.stopRefresh();
-    var url = $scope.url + '&DeviceNum=' + $scope.DeviceNum + '&NewModeTarget=' + NewModeTarget;
+    var url = $scope.generateURL('data_request?id=lu_action&output_format=json&action=SetModeTarget&serviceId=urn:upnp-org:serviceId:HVAC_UserOperatingMode1&rand='+Math.random()+'&DeviceNum='+$scope.DeviceNum+'&NewModeTarget='+NewModeTarget);
     var responsePromise = $http.get(url);
+    
     responsePromise.success(function(data, status, headers, config) {
       console.log('setModeTarget success');
     });
     responsePromise.error(function(data, status, headers, config) {
-      alert("Something went wrong!");
+      alert("setModeTarget failed!");
     });
     $scope.startRefresh();
   }
